@@ -15,10 +15,10 @@ contract CreateCompetition is Script {
         // In a real scenario, you'd need to deploy the hook first
         console2.log("CreateCompetition script started");
         console2.log("Note: This requires a deployed UniCompeteHook address");
-        
+
         // Example of how to use it with a deployed hook:
-        // address hookAddress = 0x1234567890123456789012345678901234567890; // Replace with actual deployed hook
-        // UniCompeteHook hook = UniCompeteHook(hookAddress);
+        address hookAddress = 0x1234567890123456789012345678901234567890; // Replace with actual deployed hook
+        UniCompeteHook hook = UniCompeteHook(hookAddress);
 
         // Create a test competition for ETH/USDC pool
         PoolKey memory poolKey = PoolKey({
