@@ -18,6 +18,7 @@ import "./interfaces/IUniCompete.sol";
  * @title UniCompeteHook
  * @notice A Uniswap v4 hook that creates trading competitions with LP incentives
  * @dev Implements trading competitions with portfolio tracking and LP stickiness rewards
+ * @dev Updated for Sepolia testnet with real Chainlink price feeds
  */
 contract UniCompeteHook is BaseHook, IUniCompete {
     using PoolIdLibrary for PoolKey;
@@ -73,7 +74,7 @@ contract UniCompeteHook is BaseHook, IUniCompete {
 
     // Constants
     uint256 public constant ENTRY_FEE_USD = 10; // $10 USD
-    uint256 public constant PREMIUM_ENTRY_FEE_USD = 50; // $50 USD for weETH pools
+    uint256 public constant PREMIUM_ENTRY_FEE_USD = 50; // $50 USD for premium pools
     uint256 public constant MIN_PORTFOLIO_VALUE = 50; // $50 USD
     uint256 public constant MIN_TRADES = 2;
     uint256 public constant MIN_VOLUME = 100; // $100 USD
@@ -81,9 +82,10 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     uint256 public constant STICKINESS_THRESHOLD = 7 days;
     uint256 public constant VOLATILITY_THRESHOLD = 500; // 5% in basis points
 
-    // Premium pool tokens (weETH and WETH addresses)
-    address public constant weETH = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee; // weETH mainnet
-    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // WETH mainnet
+    // Network-specific token addresses (will be set in constructor based on chain)
+    address public immutable WETH;
+    address public immutable USDC;
+    address public immutable ETH_USD_PRICE_FEED;
 
     // Events
     event CompetitionCreated(uint256 indexed competitionId, PoolKey poolKey, bool isPremium);
@@ -92,8 +94,14 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     event CompetitionFinalized(uint256 indexed competitionId, address[] winners);
     event StickinessScoreUpdated(address indexed lp, uint256 indexed competitionId, uint256 score);
 
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
-        // Initialize price feeds for common tokens
+    constructor(IPoolManager _poolManager, address _weth, address _usdc, address _ethUsdPriceFeed)
+        BaseHook(_poolManager)
+    {
+        WETH = _weth;
+        USDC = _usdc;
+        ETH_USD_PRICE_FEED = _ethUsdPriceFeed;
+
+        // Initialize price feeds for this network
         _initializePriceFeeds();
     }
 
@@ -123,7 +131,7 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     function createDailyCompetition(PoolKey memory key) external override {
         competitionCounter++;
 
-        bool isPremium = _isWeETHPool(key);
+        bool isPremium = _isPremiumPool(key);
         uint256 entryFeeAmount = isPremium ? _getPremiumEntryFeeETH() : _getStandardEntryFeeETH();
 
         competitions[competitionCounter] = Competition({
@@ -417,9 +425,11 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         }
     }
 
-    function _isWeETHPool(PoolKey memory key) internal pure returns (bool) {
-        return (Currency.unwrap(key.currency0) == weETH && Currency.unwrap(key.currency1) == WETH)
-            || (Currency.unwrap(key.currency0) == WETH && Currency.unwrap(key.currency1) == weETH);
+    function _isPremiumPool(PoolKey memory key) internal view returns (bool) {
+        // For Sepolia testnet, consider WETH/USDC as premium pool
+        // In production, this could be weETH/WETH or other high-value pairs
+        return (Currency.unwrap(key.currency0) == WETH && Currency.unwrap(key.currency1) == USDC)
+            || (Currency.unwrap(key.currency0) == USDC && Currency.unwrap(key.currency1) == WETH);
     }
 
     function _getStandardEntryFeeETH() internal view returns (uint256) {
@@ -475,11 +485,11 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     }
 
     function _initializePriceFeeds() internal {
-        // Initialize Chainlink price feeds for major tokens
-        // ETH/USD price feed on mainnet
-        priceFeeds[WETH] = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
+        // Initialize Chainlink price feeds for the current network
+        priceFeeds[WETH] = AggregatorV3Interface(ETH_USD_PRICE_FEED);
 
-        // Add more price feeds as needed for other tokens
+        // Can add more price feeds as needed for other tokens
+        // priceFeeds[USDC] = AggregatorV3Interface(USDC_USD_PRICE_FEED); // Usually 1:1 for stablecoins
     }
 
     // Admin function to add new price feeds
