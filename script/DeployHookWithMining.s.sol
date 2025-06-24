@@ -10,7 +10,7 @@ import {HookMiner} from "../lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMin
 
 /**
  * @title DeployHookWithMining
- * @notice Deployment script for UniCompeteHook on Sepolia with real Chainlink price feeds
+ * @notice Deployment script for UniCompeteHook on Sepolia with address mining
  */
 contract DeployHookWithMining is Script {
     // Sepolia testnet addresses (real addresses, not mocks)
@@ -37,6 +37,9 @@ contract DeployHookWithMining is Script {
         console2.log("Deployer address:", deployer);
         console2.log("Deployer balance:", deployer.balance / 1e18, "ETH");
 
+        // Check if deployer has sufficient balance
+        require(deployer.balance > 0.001 ether, "Insufficient ETH balance for deployment");
+
         // Verify Sepolia addresses
         console2.log("\n--- Sepolia Contract Addresses ---");
         console2.log("PoolManager:", SEPOLIA_POOL_MANAGER);
@@ -44,12 +47,15 @@ contract DeployHookWithMining is Script {
         console2.log("USDC:", SEPOLIA_USDC);
         console2.log("ETH/USD Price Feed:", SEPOLIA_ETH_USD_PRICE_FEED);
 
-        // Mine for valid hook address using HookMiner
+        // Mine for valid hook address
         console2.log("\n--- Mining for Valid Hook Address ---");
         console2.log("Required hook flags:", HOOK_FLAGS);
 
         bytes memory constructorArgs =
             abi.encode(SEPOLIA_POOL_MANAGER, SEPOLIA_WETH, SEPOLIA_USDC, SEPOLIA_ETH_USD_PRICE_FEED);
+
+        console2.log("Starting address mining...");
+        console2.log("This may take a few moments...");
 
         (address hookAddress, bytes32 salt) =
             HookMiner.find(deployer, HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
@@ -57,8 +63,22 @@ contract DeployHookWithMining is Script {
         console2.log("Found valid hook address:", hookAddress);
         console2.log("Using salt:", uint256(salt));
 
+        // Double-check the address doesn't have code
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(hookAddress)
+        }
+
+        if (codeSize > 0) {
+            console2.log("ERROR: Target address already has code!");
+            console2.log("Code size:", codeSize);
+            revert("Address collision detected");
+        }
+
         // Deploy the hook with the mined salt
         console2.log("\n--- Deploying Hook ---");
+        console2.log("Deploying to address:", hookAddress);
+
         UniCompeteHook hook = new UniCompeteHook{salt: salt}(
             IPoolManager(SEPOLIA_POOL_MANAGER), SEPOLIA_WETH, SEPOLIA_USDC, SEPOLIA_ETH_USD_PRICE_FEED
         );
@@ -103,8 +123,6 @@ contract DeployHookWithMining is Script {
 
     function _testPriceFeedExternal(UniCompeteHook hook) external view {
         // This function exists to test the price feed from an external context
-        // The actual price feed testing happens during hook deployment
-        // If deployment succeeds, the price feed is working
         require(address(hook) != address(0), "Hook not deployed");
         console2.log("Price feed verification: Hook uses real Chainlink feed at", hook.ETH_USD_PRICE_FEED());
     }
