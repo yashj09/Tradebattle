@@ -13,7 +13,7 @@ forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook --rpc-url http
 
 
 forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook \
-    --rpc-url sepolia \
+    --rpc-url  $SEPOLIA_RPC_URL \
     --broadcast 
 
 

@@ -93,31 +93,37 @@ contract DeployUniCompeteHook is Script {
 
         console2.log("Mining for valid hook address...");
 
-        // Mine for valid hook address
+        // Mine for valid hook address using this script contract as deployer
         (address hookAddress, bytes32 salt) =
-            HookMiner.find(deployer, HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
+            HookMiner.find(address(this), HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
 
         console2.log("Found hook address:", hookAddress);
         console2.log("Salt:", uint256(salt));
 
         // Check if address is available
         if (hookAddress.code.length > 0) {
-            console2.log("Address already occupied, trying regular deployment");
+            console2.log("ERROR: Mined address already has code!");
+            console2.log("This means a contract already exists at:", hookAddress);
+            console2.log("Falling back to regular deployment...");
             _deployRegular(deployer);
             return;
         }
 
+        console2.log("Mined address is available, proceeding with deployment...");
+
         console2.log("Deploying with CREATE2...");
 
-        // Deploy with CREATE2
+        // Deploy with CREATE2 using the mined salt
         UniCompeteHook hook = new UniCompeteHook{salt: salt}(
             IPoolManager(SEPOLIA_POOL_MANAGER), SEPOLIA_WETH, SEPOLIA_USDC, SEPOLIA_ETH_USD_PRICE_FEED
         );
 
-        // Verify address matches
+        console2.log("CREATE2 deployment successful!");
+
+        // Verify address matches what we mined
         require(address(hook) == hookAddress, "Address mismatch!");
 
-        console2.log("hook deployed with mining at:", address(hook));
+        console2.log("Hook deployed with mining at:", address(hook));
         _verifyDeployment(hook);
 
         // Verify permission flags
