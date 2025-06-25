@@ -15,7 +15,7 @@ library HookMiner {
     function find(address deployer, uint160 flags, bytes memory creationCode, bytes memory constructorArgs)
         internal
         view
-        returns (address)
+        returns (address, bytes32)
     {
         address hookAddress;
         bytes memory bytecode = abi.encodePacked(creationCode, constructorArgs);
@@ -23,7 +23,7 @@ library HookMiner {
         for (uint256 salt = 0; salt < MAX_LOOP; salt++) {
             hookAddress = _computeAddress(deployer, salt, bytecode);
             if (uint160(hookAddress) & FLAG_MASK == flags && hookAddress.code.length == 0) {
-                return hookAddress;
+                return (hookAddress, bytes32(salt));
             }
         }
         revert("HookMiner: could not find salt");

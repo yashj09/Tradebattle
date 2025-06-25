@@ -9,16 +9,16 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
-import {SwapParams, ModifyLiquidityParams} from "v4-core/src/types/PoolOperation.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
-import {AggregatorV3Interface} from "../lib/chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {ModifyLiquidityParams, SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import "./interfaces/IUniCompete.sol";
 
 /**
  * @title UniCompeteHook
  * @notice A Uniswap v4 hook that creates trading competitions with LP incentives
  * @dev Implements trading competitions with portfolio tracking and LP stickiness rewards
- * @dev Updated for Sepolia testnet with real Chainlink price feeds
+ * @dev Updated for Uniswap v4 with correct interface implementations
  */
 contract UniCompeteHook is BaseHook, IUniCompete {
     using PoolIdLibrary for PoolKey;
@@ -82,7 +82,7 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     uint256 public constant STICKINESS_THRESHOLD = 7 days;
     uint256 public constant VOLATILITY_THRESHOLD = 500; // 5% in basis points
 
-    // Network-specific token addresses (will be set in constructor based on chain)
+    // Network-specific token addresses
     address public immutable WETH;
     address public immutable USDC;
     address public immutable ETH_USD_PRICE_FEED;
@@ -229,7 +229,20 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         });
     }
 
-    // Hook implementations
+    // Hook implementations with correct signatures
+    function _afterInitialize(address, PoolKey calldata, uint160, int24) internal pure override returns (bytes4) {
+        return BaseHook.afterInitialize.selector;
+    }
+
+    function _beforeSwap(address, PoolKey calldata, SwapParams calldata, bytes calldata)
+        internal
+        pure
+        override
+        returns (bytes4, BeforeSwapDelta, uint24)
+    {
+        return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+    }
+
     function _afterSwap(
         address sender,
         PoolKey calldata key,
@@ -252,7 +265,7 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         PoolKey calldata key,
         ModifyLiquidityParams calldata params,
         BalanceDelta delta,
-        BalanceDelta feesAccrued,
+        BalanceDelta,
         bytes calldata
     ) internal override returns (bytes4, BalanceDelta) {
         PoolId poolId = key.toId();
@@ -270,7 +283,7 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         PoolKey calldata key,
         ModifyLiquidityParams calldata params,
         BalanceDelta delta,
-        BalanceDelta feesAccrued,
+        BalanceDelta,
         bytes calldata
     ) internal override returns (bytes4, BalanceDelta) {
         PoolId poolId = key.toId();
@@ -281,6 +294,15 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         }
 
         return (BaseHook.afterRemoveLiquidity.selector, BalanceDelta.wrap(0));
+    }
+
+    function _afterDonate(address, PoolKey calldata, uint256, uint256, bytes calldata)
+        internal
+        pure
+        override
+        returns (bytes4)
+    {
+        return BaseHook.afterDonate.selector;
     }
 
     /**
@@ -361,8 +383,6 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         address[] memory winners = new address[](3);
 
         // Simple implementation - find top 3 performers by P&L
-        // In production, implement proper sorting algorithm
-
         uint256 maxReturn = 0;
         for (uint256 i = 0; i < comp.participants.length; i++) {
             address user = comp.participants[i];
@@ -414,7 +434,6 @@ contract UniCompeteHook is BaseHook, IUniCompete {
 
     function _donateToLPs(PoolKey memory key, uint256 amount) internal {
         // Implementation for donating rewards to LPs using v4's donate function
-        // Convert ETH to appropriate currencies and donate
         if (amount > 0) {
             // Split donation between both currencies in the pool
             uint256 amount0 = amount / 2;
@@ -426,19 +445,15 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     }
 
     function _isPremiumPool(PoolKey memory key) internal view returns (bool) {
-        // For Sepolia testnet, consider WETH/USDC as premium pool
-        // In production, this could be weETH/WETH or other high-value pairs
         return (Currency.unwrap(key.currency0) == WETH && Currency.unwrap(key.currency1) == USDC)
             || (Currency.unwrap(key.currency0) == USDC && Currency.unwrap(key.currency1) == WETH);
     }
 
     function _getStandardEntryFeeETH() internal view returns (uint256) {
-        // Convert $10 USD to ETH using Chainlink price feed
         return _convertUSDToETH(ENTRY_FEE_USD);
     }
 
     function _getPremiumEntryFeeETH() internal view returns (uint256) {
-        // Convert $50 USD to ETH using Chainlink price feed
         return _convertUSDToETH(PREMIUM_ENTRY_FEE_USD);
     }
 
@@ -455,41 +470,31 @@ contract UniCompeteHook is BaseHook, IUniCompete {
 
     function _getPortfolioValue(address user, PoolKey memory key) internal view returns (uint256) {
         // Simplified portfolio calculation
-        // In production, implement comprehensive portfolio tracking
         return 100e18; // Placeholder
     }
 
     function _getLPPosition(address lp, PoolKey memory key) internal view returns (uint256) {
         // Get LP's position size in the pool
-        // In production, implement proper position tracking
         return 1e18; // Placeholder
     }
 
     function _calculateTradeVolume(SwapParams calldata params, BalanceDelta delta) internal pure returns (uint256) {
-        // Calculate trade volume from swap params
         int256 amountSpecified = params.amountSpecified;
         return uint256(amountSpecified < 0 ? -amountSpecified : amountSpecified);
     }
 
     function _isVolatilePeriod(PoolKey memory) internal view returns (bool) {
-        // Check if current period has high volatility (>5% price movement)
-        // In production, implement proper volatility detection
         return false; // Placeholder
     }
 
     function _calculateConsistencyScore(LPEntry memory entry) internal pure returns (uint256) {
-        // Calculate LP consistency score based on various factors
         uint256 baseScore = entry.daysActive * 10;
         uint256 volatilityBonus = entry.volatilityPeriods * 5;
         return baseScore + volatilityBonus;
     }
 
     function _initializePriceFeeds() internal {
-        // Initialize Chainlink price feeds for the current network
         priceFeeds[WETH] = AggregatorV3Interface(ETH_USD_PRICE_FEED);
-
-        // Can add more price feeds as needed for other tokens
-        // priceFeeds[USDC] = AggregatorV3Interface(USDC_USD_PRICE_FEED); // Usually 1:1 for stablecoins
     }
 
     // Admin function to add new price feeds

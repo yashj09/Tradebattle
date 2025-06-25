@@ -24,5 +24,7 @@ runs = 1000
 seed = "0x4444"
 
 [rpc_endpoints]
-sepolia = "https://ethereum-sepolia-rpc.publicnode.com"
+sepolia = "https://eth-sepolia.g.alchemy.com/v2/qrKOxN0aM6ljkPTJMQc7xks3CXqi9jAL"
 holesky = "https://ethereum-holesky-rpc.publicnode.com"
+mainnet = "https://ethereum-rpc.publicnode.com"
+anvil = "http://localhost:8545"

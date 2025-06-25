@@ -1,3 +1,25 @@
+forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook --rpc-url http://localhost:8545 --broadcast
+
+
+forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook --rpc-url http://localhost:8545 --broadcast --skip-simulation --legacy
+
+
+
+
+
+forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook --rpc-url http://localhost:8545 --broadcast --skip-simulation
+
+
+
+
+forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook \
+    --rpc-url sepolia \
+    --broadcast 
+
+
+
+
+
 # Sepolia RPC URL
 SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 
