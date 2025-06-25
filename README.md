@@ -1,52 +1,22 @@
-forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook --rpc-url http://localhost:8545 --broadcast
-
-
-forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook --rpc-url http://localhost:8545 --broadcast --skip-simulation --legacy
+hook address: 0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
 
 
 
-
-
-forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook --rpc-url http://localhost:8545 --broadcast --skip-simulation
-
-
-
-
+# WORKING SCRIPT
 forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook \
-    --rpc-url  $SEPOLIA_RPC_URL \
-    --broadcast 
-
-
-
-
-
-# Sepolia RPC URL
-SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
-
-# Holesky RPC URL  
-HOLESKY_RPC_URL=https://ethereum-holesky-rpc.publicnode.com
-
-forge script script/DeployHookWithMining.s.sol:DeployHookWithMining  \
-    --rpc-url http://localhost:8545 \
-    --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-    --broadcast  \
-    -vvvv
-forge script script/DeployHookWithMining.s.sol:DeployHookWithMining  \
     --rpc-url $SEPOLIA_RPC_URL \
     --private-key $PRIVATE_KEY \
-    --broadcast  \
-    -vvvv
-forge script script/CreateCompetition.s.sol  \
-    --rpc-url http://localhost:8545 \
-    --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-    --broadcast  \
-    -vvvv
-
-    forge script script/DeployHookWithMining.s.sol:DeployHookWithMining \
-    --rpc-url http://localhost:8545 \
     --broadcast \
-    -vvvv
+    -v
 
+forge script script/TestCompetitions.sol:TestCompetitions --rpc-url $SEPOLIA_RPC_URL --priv
+ate-key $PRIVATE_KEY --broadcast
+
+forge script script/CreateCompetition.s.sol:CreateCompetition \
+    --rpc-url $SEPOLIA_RPC_URL \
+    --private-key $PRIVATE_KEY \
+    --broadcast \
+    -v
 # UniCompete Hook
 
 A Uniswap v4 hook that creates trading competitions with LP incentives and real-time price feeds.

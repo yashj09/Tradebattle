@@ -6,23 +6,23 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {UniCompeteHook} from "../src/UniCompeteHook.sol";
-import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {HookMiner} from "../lib/uniswap-hooks/lib/v4-periphery/src/utils/HookMiner.sol";
+import {HookMiner} from "v4-periphery/src/utils/HookMiner.sol";
 
 /**
  * @title CreateCompetition
- * @notice Deployment and testing script for Sepolia testnet with real Chainlink price feeds
+ * @notice FIXED - Deployment and testing script for Sepolia testnet
  */
 contract CreateCompetition is Script {
-    // Sepolia testnet addresses (real addresses, not mocks)
-    address constant SEPOLIA_POOL_MANAGER = 0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A; // Official v4 PoolManager on Sepolia
-    address constant SEPOLIA_WETH = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9; // Official WETH on Sepolia
-    address constant SEPOLIA_USDC = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238; // Official USDC on Sepolia
-    address constant SEPOLIA_ETH_USD_PRICE_FEED = 0x694AA1769357215DE4FAC081bf1f309aDC325306; // Chainlink ETH/USD on Sepolia
+    // Sepolia testnet addresses
+    address constant SEPOLIA_POOL_MANAGER = 0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A;
+    address constant SEPOLIA_WETH = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
+    address constant SEPOLIA_USDC = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+    address constant SEPOLIA_ETH_USD_PRICE_FEED = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
+    address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    // Hook flags for UniCompeteHook permissions
+    // Hook flags matching your working deployment
     uint160 constant HOOK_FLAGS = uint160(
         Hooks.AFTER_INITIALIZE_FLAG | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
             | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_DONATE_FLAG
@@ -31,105 +31,111 @@ contract CreateCompetition is Script {
     function run() external {
         vm.startBroadcast();
 
-        // Get deployer address
-        address deployer = vm.addr(vm.envUint("PRIVATE_KEY"));
-        console2.log("Deployer address:", deployer);
-        console2.log("Deployer balance:", deployer.balance);
+        address deployer = msg.sender;
+        console2.log("=== CreateCompetition Script ===");
+        console2.log("Deployer:", deployer);
+        console2.log("Balance:", deployer.balance / 1e18, "ETH");
 
-        // Step 1: Deploy or get existing hook
-        UniCompeteHook hook = _deployOrGetHook(deployer);
-        console2.log("Hook deployed at:", address(hook));
+        // Step 1: Get or deploy hook
+        UniCompeteHook hook = _getOrDeployHook();
+        console2.log("Using hook at:", address(hook));
 
-        // Step 2: Create a test pool key for WETH/USDC
+        // Step 2: Create pool key
         PoolKey memory poolKey = PoolKey({
-            currency0: Currency.wrap(SEPOLIA_WETH),
-            currency1: Currency.wrap(SEPOLIA_USDC),
-            fee: 3000, // 0.3% fee tier
+            currency0: Currency.wrap(SEPOLIA_WETH < SEPOLIA_USDC ? SEPOLIA_WETH : SEPOLIA_USDC),
+            currency1: Currency.wrap(SEPOLIA_WETH < SEPOLIA_USDC ? SEPOLIA_USDC : SEPOLIA_WETH),
+            fee: 3000, // 0.3% fee
             tickSpacing: 60,
             hooks: IHooks(address(hook))
         });
 
-        console2.log("Creating competition for WETH/USDC pool...");
-        console2.log("Currency0 (WETH):", Currency.unwrap(poolKey.currency0));
-        console2.log("Currency1 (USDC):", Currency.unwrap(poolKey.currency1));
+        console2.log("\n--- Creating Competition ---");
+        console2.log("Currency0:", Currency.unwrap(poolKey.currency0));
+        console2.log("Currency1:", Currency.unwrap(poolKey.currency1));
 
-        // Step 3: Create a daily competition
+        // Step 3: Create competition
+        uint256 beforeCount = hook.competitionCounter();
+
         try hook.createDailyCompetition(poolKey) {
-            console2.log("Daily competition created successfully!");
+            uint256 afterCount = hook.competitionCounter();
+            console2.log("Competition created successfully!");
+            console2.log("Competition ID:", afterCount);
+            console2.log("Competitions before:", beforeCount);
+            console2.log("Competitions after:", afterCount);
 
-            // Get the competition details
-            uint256 competitionId = hook.competitionCounter();
-            console2.log("Competition ID:", competitionId);
+            // Get competition details
+            if (afterCount > 0) {
+                UniCompeteHook.CompetitionInfo memory info = hook.getCompetitionInfo(afterCount);
+                console2.log("\n--- Competition Details ---");
+                console2.log("ID:", info.id);
+                console2.log("Start Time:", info.startTime);
+                console2.log("End Time:", info.endTime);
+                console2.log("Entry Fee:", info.entryFee);
+                console2.log("Participants:", info.participantCount);
+                console2.log("Active:", info.isActive);
+            }
 
-            // Get competition details using the proper function
-            UniCompeteHook.CompetitionInfo memory info = hook.getCompetitionInfo(competitionId);
-
-            console2.log("Competition Details:");
-            console2.log("- ID:", info.id);
-            console2.log("- Start Time:", info.startTime);
-            console2.log("- End Time:", info.endTime);
-            console2.log("- Entry Fee (wei):", info.entryFee);
-            console2.log("- Participant Count:", info.participantCount);
-            console2.log("- Is Active:", info.isActive);
-
-            // Test price feed functionality
+            // Test price feed
             _testPriceFeed(hook);
         } catch Error(string memory reason) {
-            console2.log("Failed to create competition:", reason);
+            console2.log("Competition creation failed:", reason);
         } catch (bytes memory lowLevelData) {
-            console2.log("Failed to create competition with low-level error");
+            console2.log("Competition creation failed with low-level error");
             console2.logBytes(lowLevelData);
         }
 
         vm.stopBroadcast();
+        console2.log("\n=== Script Complete ===");
     }
 
-    function _deployOrGetHook(address deployer) internal returns (UniCompeteHook) {
-        // Try to use an existing deployment first, or deploy new
+    function _getOrDeployHook() internal returns (UniCompeteHook) {
+        // Check for existing hook address
         address existingHook = vm.envOr("DEPLOYED_HOOK_ADDRESS", address(0));
 
         if (existingHook != address(0)) {
-            console2.log("Using existing hook at:", existingHook);
+            console2.log(" Using existing hook:", existingHook);
             return UniCompeteHook(existingHook);
         }
 
-        // Deploy new hook using CREATE2 with proper mining
-        console2.log("Deploying new hook...");
-        console2.log("Mining for valid hook address...");
+        console2.log(" Deploying new hook...");
 
+        // Deploy new hook
         bytes memory constructorArgs =
             abi.encode(SEPOLIA_POOL_MANAGER, SEPOLIA_WETH, SEPOLIA_USDC, SEPOLIA_ETH_USD_PRICE_FEED);
 
         (address hookAddress, bytes32 salt) =
-            HookMiner.find(deployer, HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
+            HookMiner.find(CREATE2_DEPLOYER, HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
 
-        console2.log("Found valid hook address:", hookAddress);
-        console2.log("Using salt:", uint256(salt));
+        console2.log("Mined hook address:", hookAddress);
+        console2.log("Salt:", uint256(salt));
 
-        // Deploy the hook with the mined salt
         UniCompeteHook hook = new UniCompeteHook{salt: salt}(
             IPoolManager(SEPOLIA_POOL_MANAGER), SEPOLIA_WETH, SEPOLIA_USDC, SEPOLIA_ETH_USD_PRICE_FEED
         );
 
-        // Verify the deployed address matches our mined address
-        require(address(hook) == hookAddress, "Hook address mismatch!");
-        console2.log("Hook deployed successfully at:", address(hook));
+        require(address(hook) == hookAddress, "Address mismatch");
+        console2.log("New hook deployed:", address(hook));
 
         return hook;
     }
 
     function _testPriceFeed(UniCompeteHook hook) internal {
-        console2.log("\n--- Testing Real Chainlink Price Feed ---");
+        console2.log("\n--- Testing Price Feed ---");
 
         try hook.addPriceFeed(SEPOLIA_WETH, SEPOLIA_ETH_USD_PRICE_FEED) {
-            console2.log("Price feed added successfully");
+            console2.log("Price feed configured");
         } catch {
-            console2.log("Price feed may already be set");
+            console2.log("Price feed already configured");
         }
 
-        // Note: We can't easily test the internal _convertUSDToETH function from here
-        // but the hook deployment success indicates the price feed is working
-        console2.log("Real Chainlink ETH/USD feed address:", SEPOLIA_ETH_USD_PRICE_FEED);
-        console2.log("This feed provides real-time ETH/USD prices on Sepolia testnet");
+        // Test price feed data
+        address feedAddr = hook.ETH_USD_PRICE_FEED();
+        console2.log("Price feed address:", feedAddr);
+
+        if (feedAddr == SEPOLIA_ETH_USD_PRICE_FEED) {
+            console2.log(" Price feed correctly configured");
+        } else {
+            console2.log("Price feed mismatch");
+        }
     }
 }

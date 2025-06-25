@@ -93,9 +93,9 @@ contract DeployUniCompeteHook is Script {
 
         console2.log("Mining for valid hook address...");
 
-        // Mine for valid hook address using this script contract as deployer
+        // Mine for valid hook address using the CREATE2 deployer
         (address hookAddress, bytes32 salt) =
-            HookMiner.find(address(this), HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
+            HookMiner.find(CREATE2_DEPLOYER, HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
 
         console2.log("Found hook address:", hookAddress);
         console2.log("Salt:", uint256(salt));
