@@ -20,10 +20,10 @@ TradeBattle transforms regular DeFi trading into engaging competitions where:
 ## 🚀 Quick Start
 
 ### Current Deployment (Sepolia Testnet)
+Link - https://sepolia.etherscan.io/address/0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
 
 ```bash
 Hook Address: 0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
-Link - https://sepolia.etherscan.io/address/0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
 Network: Sepolia Testnet
 Status: Live & Functional ✅
 ```
