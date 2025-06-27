@@ -1,212 +1,425 @@
-hook address: 0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
+# 🎮 TradeBattle - Competitive Trading on Uniswap v4
 
+**Transform DeFi trading into competitive gaming experiences with real prizes and live leaderboards.**
 
+TradeBattle is a Uniswap v4 hook that automatically turns every trade into a competitive scoring experience. Users join daily tournaments, compete for real prize pools, and build trading reputations - all while trading normally through Uniswap.
 
-# WORKING SCRIPT
-forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook \
-    --rpc-url $SEPOLIA_RPC_URL \
-    --private-key $PRIVATE_KEY \
-    --broadcast \
-    -v
+## 🌟 What is TradeBattle?
 
-forge script script/TestCompetitions.sol:TestCompetitions --rpc-url $SEPOLIA_RPC_URL --priv
-ate-key $PRIVATE_KEY --broadcast
+TradeBattle transforms regular DeFi trading into engaging competitions where:
 
-forge script script/CreateCompetition.s.sol:CreateCompetition \
-    --rpc-url $SEPOLIA_RPC_URL \
-    --private-key $PRIVATE_KEY \
-    --broadcast \
-    -v
-# UniCompete Hook
+- **Pay to Play**: Users pay entry fees ($10-50) to join daily trading tournaments
+- **Trade Normally**: Use any Uniswap interface - the hook tracks performance automatically  
+- **Win Real Prizes**: Top performers split prize pools based on trading performance
+- **Trustless Verification**: EigenLayer AVS ensures fair scoring with cryptoeconomic security
+- **Live Competition**: Real-time leaderboards and portfolio tracking
+- **Build Reputation**: Earn achievement NFTs and climbing ranking systems
 
-A Uniswap v4 hook that creates trading competitions with LP incentives and real-time price feeds.
+## 🚀 Quick Start
 
-## 🌟 Updates for Real Testnet Deployment
+### Current Deployment (Sepolia Testnet)
 
-### Real Chainlink Price Feeds
-- **NO MORE MOCKS**: Now uses real Chainlink price feeds on Sepolia
-- Real-time ETH/USD pricing from Chainlink's official Sepolia feed
-- Production-ready architecture for mainnet deployment
-
-### Sepolia Testnet Configuration
-
-#### Contract Addresses (Sepolia)
-```
-PoolManager:    0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A
-WETH:          0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9
-USDC:          0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
-ETH/USD Feed:  0x694AA1769357215DE4FAC081bf1f309aDC325306
+```bash
+Hook Address: 0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
+Network: Sepolia Testnet
+Status: Live & Functional ✅
 ```
 
-## 🚀 Deployment on Sepolia
 
-### Prerequisites
-1. **Sepolia ETH**: Get testnet ETH from [Sepolia Faucet](https://sepoliafaucet.com/)
-2. **Private Key**: Set up your private key in environment
-3. **RPC URL**: Use a reliable Sepolia RPC endpoint
+## 🏆 Competition Mechanics
+
+### Daily Profit Challenge (Current Implementation)
+
+**How It Works:**
+- 24-hour competitions starting daily
+- Entry fee: $10 USD (dynamically calculated in ETH)
+- Goal: Achieve highest portfolio percentage return
+- Minimum requirements: 2+ trades, $100+ volume
+
+**Prize Distribution:**
+- 🥇 **1st Place**: 70% of prize pool
+- 🥈 **2nd Place**: 20% of prize pool  
+- 🥉 **3rd Place**: 10% of prize pool
+- 💰 **Platform Fee**: 10% for development
+
+**Entry Requirements:**
+- Portfolio value ≥ $50 USD
+- Complete ≥ 2 trades during competition
+- Generate ≥ $100 USD trading volume
+
+### Premium Competitions
+
+**WETH/USDC Pools:**
+- Higher entry fee: $50 USD
+- Larger prize pools
+- Enhanced LP rewards
+- Stricter qualification requirements
+
+## 📊 How Scoring Works
+
+### Portfolio Tracking
+1. **Snapshot**: Complete portfolio value captured at competition start
+2. **Real-time Pricing**: Chainlink price feeds for accurate valuations
+3. **P&L Calculation**: `(final_value - initial_value) / initial_value * 100`
+4. **Live Rankings**: Continuous leaderboard updates during competition
+
+### Anti-Gaming Measures
+- Prevent mid-competition deposits
+- Detect wash trading patterns
+- Minimum trading requirements
+- Behavioral analysis (roadmap)
+
+## 🛠 Technical Architecture
+
+### System Overview
+
+```mermaid
+graph TB
+    subgraph "Users & Interface"
+        U1[Trader A]
+        U2[Trader B]
+        U3[LP Provider]
+        UI[Uniswap Interface]
+    end
+
+    subgraph "Uniswap v4 Core"
+        PM[Pool Manager]
+        P1[WETH/USDC Pool]
+        P2[Other Pools]
+    end
+
+    subgraph "TradeBattle Hook"
+        TBH[TradeBattle Hook Contract]
+        CM[Competition Manager]
+        PT[Portfolio Tracker]
+        PD[Prize Distribution]
+    end
+
+    subgraph "EigenLayer AVS"
+        SM[Service Manager]
+        O1[Operator 1]
+        O2[Operator 2] 
+        O3[Operator 3]
+        CS[Consensus Layer]
+    end
+
+    subgraph "External Services"
+        CL[Chainlink Price Feeds]
+        ES[Event System]
+    end
+
+    subgraph "Competition Flow"
+        CF1[1. Join Competition]
+        CF2[2. Trade Normally]
+        CF3[3. Track Performance]
+        CF4[4. Competition Ends]
+        CF5[5. AVS Verification]
+        CF6[6. Prize Distribution]
+    end
+
+    %% User interactions
+    U1 --> UI
+    U2 --> UI
+    U3 --> UI
+    UI --> PM
+
+    %% Hook integration
+    PM --> TBH
+    TBH --> P1
+    TBH --> P2
+
+    %% Hook components
+    TBH --> CM
+    TBH --> PT
+    TBH --> PD
+
+    %% AVS integration
+    TBH --> SM
+    SM --> O1
+    SM --> O2
+    SM --> O3
+    O1 --> CS
+    O2 --> CS
+    O3 --> CS
+    CS --> SM
+    SM --> TBH
+
+    %% External data
+    CL --> PT
+    CL --> O1
+    CL --> O2
+    CL --> O3
+
+    %% Competition flow
+    CF1 --> CF2
+    CF2 --> CF3
+    CF3 --> CF4
+    CF4 --> CF5
+    CF5 --> CF6
+
+    %% Styling
+    classDef userNodes fill:#e1f5fe
+    classDef hookNodes fill:#f3e5f5
+    classDef avsNodes fill:#e8f5e8
+    classDef externalNodes fill:#fff3e0
+    classDef flowNodes fill:#fce4ec
+
+    class U1,U2,U3,UI userNodes
+    class TBH,CM,PT,PD hookNodes
+    class SM,O1,O2,O3,CS avsNodes
+    class CL,ES externalNodes
+    class CF1,CF2,CF3,CF4,CF5,CF6 flowNodes
+```
+
+### Competition Verification Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant H as TradeBattle Hook
+    participant PM as Pool Manager
+    participant SM as AVS Service Manager
+    participant O1 as Operator 1
+    participant O2 as Operator 2
+    participant O3 as Operator 3
+    participant CL as Chainlink
+
+    Note over U,CL: Competition Lifecycle
+
+    %% Competition Start
+    U->>H: joinCompetition() + entry fee
+    H->>CL: Get portfolio snapshot prices
+    CL-->>H: Current ETH/USD prices
+    H->>H: Record initial portfolio value
+
+    %% Trading Phase
+    loop Trading Period (24 hours)
+        U->>PM: Execute trades via Uniswap
+        PM->>H: beforeSwap() / afterSwap() hooks
+        H->>H: Track trades & volume
+        H->>CL: Get current prices
+        CL-->>H: Updated prices
+        H->>H: Update live rankings
+    end
+
+    %% Verification Phase
+    H->>SM: createCompetitionVerificationTask()
+    SM->>O1: New task: Calculate P&L
+    SM->>O2: New task: Calculate P&L  
+    SM->>O3: New task: Calculate P&L
+
+    par Parallel Operator Processing
+        O1->>CL: Get final prices
+        CL-->>O1: Price data
+        O1->>O1: Calculate all user P&L
+        O1->>SM: Submit top 3 winners
+    and
+        O2->>CL: Get final prices
+        CL-->>O2: Price data
+        O2->>O2: Calculate all user P&L
+        O2->>SM: Submit top 3 winners
+    and
+        O3->>CL: Get final prices
+        CL-->>O3: Price data
+        O3->>O3: Calculate all user P&L
+        O3->>SM: Submit top 3 winners
+    end
+
+    SM->>SM: Check consensus (2/3 agreement)
+    SM->>H: receiveVerifiedWinners()
+    H->>U: Distribute prizes to winners
+    H->>H: Emit CompetitionFinalized event
+
+    Note over U,CL: Competition Complete ✅
+```
+
+### Uniswap v4 Hook Integration
+
+```solidity
+contract TradeBattleHook is BaseHook {
+    // Hook implementations
+    function beforeSwap() -> Track user entries
+    function afterSwap() -> Update portfolio & volume stats  
+    function afterAddLiquidity() -> LP competition tracking
+    function afterDonate() -> Distribute LP rewards
+}
+```
+
+### EigenLayer AVS - Decentralized Score Verification 🔒
+
+**Why EigenLayer AVS?**
+Traditional DeFi lacks trust in competition scoring. Anyone could manipulate results or dispute winners. TradeBattle solves this with **cryptoeconomic security** through EigenLayer's restaking infrastructure.
+
+**How It Works:**
+```mermaid
+graph LR
+    A[Competition Ends] --> B[AVS Task Created]
+    B --> C[Multiple Operators Calculate Scores]
+    C --> D[Consensus Required: 2/3 Agreement]
+    D --> E[Winners Verified & Approved]
+    E --> F[Automatic Prize Distribution]
+```
+
+**The Process:**
+1. **Competition Ends** → Hook calls `createCompetitionVerificationTask()`
+2. **Operators Calculate** → Multiple staked validators independently compute P&L for all participants  
+3. **Consensus Mechanism** → 2/3 of operators must agree on top 3 winners
+4. **Verification Complete** → AVS calls back `receiveVerifiedWinners()` on hook
+5. **Automatic Payouts** → Winners receive ETH prizes immediately
+
+**Security Benefits:**
+- **🛡️ Anti-Cheat Protection**: Multiple independent verifications prevent manipulation
+- **💰 Economic Stakes**: Operators lose staked ETH if they approve wrong results  
+- **⚡ Scalable Computation**: Complex scoring runs off-chain without gas limits
+- **🤖 Trustless Automation**: No human intervention needed for prize distribution
+
+**Current Status**: ✅ AVS implementation ready
+
+### Key Features Implemented
+
+✅ **Real Price Feeds**: Chainlink ETH/USD on Sepolia  
+✅ **Dynamic Entry Fees**: USD amounts converted to ETH  
+✅ **Portfolio Tracking**: Complete token balance snapshots  
+✅ **Competition Management**: Create, join, finalize competitions  
+✅ **Prize Distribution**: Automatic winner payouts  
+✅ **LP Incentives**: Liquidity provider stickiness rewards  
+✅ **EigenLayer AVS**: Decentralized score verification (testing)
+
+### Architecture Components
+
+- **TradeBattleHook.sol**: Main hook contract with competition logic
+- **UniCompeteAVS**: EigenLayer service for trustless score verification
+- **NetworkConfig.sol**: Multi-network configuration (Sepolia, Mainnet ready)  
+- **Price Feeds**: Real Chainlink oracles (no mocks)
+- **Competition Engine**: Entry, tracking, and payout systems
+
+## 🚀 Deployment Guide
 
 ### Environment Setup
+
 ```bash
-# Set your private key (with 0x prefix)
+# Required environment variables
 export PRIVATE_KEY=0x1234567890abcdef...
+export SEPOLIA_RPC_URL=https://rpc.sepolia.org
 
-# Optional: Set existing hook address to skip deployment
-export DEPLOYED_HOOK_ADDRESS=0x...
+# Optional: Use existing hook
+export DEPLOYED_HOOK_ADDRESS=0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
 ```
 
-### Deploy the Hook
+### Deploy on Sepolia
+
 ```bash
-# Deploy on Sepolia with real price feeds
-forge script script/DeployHookWithMining.s.sol:DeployHookWithMining \
-  --fork-url https://rpc.sepolia.org \
+# Deploy new hook with mining
+forge script script/DeployUniCompeteHook.sol:DeployUniCompeteHook \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $PRIVATE_KEY \
   --broadcast \
-  --verify \
-  -vvvv
-```
+  --verify
 
-### Create a Competition
-```bash
-# Create a test competition
+# Create first competition
 forge script script/CreateCompetition.s.sol:CreateCompetition \
-  --fork-url https://rpc.sepolia.org \
-  --broadcast \
-  -vvvv
-```
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast
 
-## 💰 Real Price Feed Integration
-
-### Chainlink ETH/USD Feed
-- **Address**: `0x694AA1769357215DE4FAC081bf1f309aDC325306`
-- **Network**: Sepolia Testnet
-- **Decimals**: 8
-- **Updates**: Real-time price updates from Chainlink oracles
-
-### Entry Fee Calculation
-Entry fees are dynamically calculated using real ETH prices:
-- **Standard Competition**: $10 USD (converted to ETH)
-- **Premium Competition**: $50 USD (WETH/USDC pools)
-
-Example with ETH at $3,000:
-- Standard fee: ~0.0033 ETH
-- Premium fee: ~0.0167 ETH
-
-## 🏆 Competition Types
-
-### Standard Competitions
-- **Pools**: Most token pairs
-- **Entry Fee**: $10 USD worth of ETH
-- **Duration**: 24 hours
-- **Qualification**: Min 2 trades, $100 volume
-
-### Premium Competitions 
-- **Pools**: WETH/USDC pairs
-- **Entry Fee**: $50 USD worth of ETH
-- **Duration**: 24 hours
-- **Enhanced Rewards**: Higher prize pools
-
-## 🧪 Testing Guide
-
-### 1. Deploy Hook
-```bash
-forge script script/DeployHookWithMining.s.sol:DeployHookWithMining \
-  --fork-url https://rpc.sepolia.org \
+# Test competition functions  
+forge script script/TestCompetitions.sol:TestCompetitions \
+  --rpc-url $SEPOLIA_RPC_URL \
+  --private-key $PRIVATE_KEY \
   --broadcast
 ```
 
-### 2. Verify Deployment
-Check that the hook:
-- ✅ Has correct Sepolia addresses
-- ✅ Can access Chainlink price feed
-- ✅ Calculates entry fees properly
+### Project Structure
 
-### 3. Create Competition
-```bash
-forge script script/CreateCompetition.s.sol:CreateCompetition \
-  --fork-url https://rpc.sepolia.org \
-  --broadcast
+```
+src/
+├── UniCompeteHook.sol           # Main hook contract
+├── interfaces/
+│   └── IUniCompete.sol         # Hook interface
+└── utils/
+    └── HookMiner.sol           # Address mining utility
+
+script/
+├── DeployUniCompeteHook.sol    # Deployment script
+├── CreateCompetition.s.sol     # Competition creation
+├── TestCompetitions.sol        # Testing utilities
+└── NetworkConfig.sol           # Network configurations
+
+test/
+├── Counter.t.sol               # Hook testing framework  
+└── utils/                      # Test utilities and helpers
 ```
 
-### 4. Verify Competition
-Check that the competition:
-- ✅ Uses real-time ETH pricing
-- ✅ Sets correct entry fees
-- ✅ Identifies premium pools correctly
+## 🎯 Current Status & Roadmap
 
-## 🔍 Key Improvements
+### ✅ Completed (v1.0)
+- Core competition mechanics
+- Portfolio tracking with real price feeds  
+- Entry fee collection and prize distribution
+- LP stickiness rewards system
+- Sepolia testnet deployment
+- **EigenLayer AVS implementation** for decentralized score verification
 
-### ✅ Real Price Feeds
-- Replaced all mock price feeds with real Chainlink oracles
-- Entry fees now fluctuate with real ETH prices
-- Production-ready price feed integration
+### 🚧 In Progress (v1.1)
+- EigenLayer AVS integration testing and deployment
+- Advanced anti-cheat detection algorithms
+- Multiple competition types (volume wars, consistency challenges)
+- Achievement NFT system
 
-### ✅ Network Configuration
-- Clean separation of network-specific addresses
-- Easy switching between networks (Sepolia, Mainnet, etc.)
-- Centralized configuration management
+### 🔮 Future Features (v2.0)
+- Cross-chain competitions
+- Team-based tournaments  
+- Prediction markets integration
+- Social features and leaderboards
+- Mobile app with push notifications
 
-### ✅ Robust Deployment
-- Proper CREATE2 mining for hook addresses
-- Comprehensive error handling
-- Detailed deployment verification
-
-### ✅ Enhanced Testing
-- Real testnet environment testing
-- Live price feed validation
-- Complete end-to-end workflows
-
-## 📊 Competition Mechanics
-
-### Trader Competitions
-1. **Entry**: Pay ETH entry fee (calculated from USD using Chainlink)
-2. **Trading**: Execute swaps in the competition pool
-3. **Tracking**: Portfolio value tracked in real-time
-4. **Rewards**: Top performers share prize pool
-
-### LP Competitions
-1. **Entry**: Provide liquidity to competition pool
-2. **Stickiness**: Maintain liquidity during volatile periods
-3. **Consistency**: Build consistency score over time
-4. **Rewards**: Earn from fee sharing and donations
-
-## 🛠 Development
-
-### Local Testing
-```bash
-# Compile contracts
-forge build
-
-# Run tests
-forge test
-
-# Deploy locally
-forge script script/DeployHookWithMining.s.sol:DeployHookWithMining
-```
+## 🔧 Configuration
 
 ### Network Support
-- ✅ **Sepolia**: Full support with real price feeds
-- 🚧 **Mainnet**: Ready for v4 launch
-- 🚧 **Arbitrum**: Configuration ready
-- 🚧 **Base**: Configuration ready
 
-## 📝 Contract Architecture
+| Network | Status | Pool Manager | WETH | USDC |
+|---------|--------|--------------|------|------|
+| Sepolia | ✅ Live | `0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A` | `0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9` | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| Mainnet | 🚧 Ready | TBD | `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` | `0xa0b86a33E6441d1e7c91aE0C63C4E79F2a5a7fB6` |
+| Arbitrum | 🚧 Ready | TBD | `0x82aF49447D8a07e3bd95BD0d56f35241523fBab1` | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
+| Base | 🚧 Ready | TBD | `0x4200000000000000000000000000000000000006` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 
-### UniCompeteHook
-- Main hook contract with competition logic
-- Real Chainlink price feed integration
-- Dynamic entry fee calculation
-- Portfolio tracking and rewards
+### Price Feeds (Chainlink)
 
-### NetworkConfig
-- Centralized network configuration
-- Real addresses for all supported networks
-- Easy network switching
+- **Sepolia ETH/USD**: `0x694AA1769357215DE4FAC081bf1f309aDC325306`
+- **Mainnet ETH/USD**: `0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419`
+- All networks use real Chainlink oracles (no mocks)
 
-## 🔗 Useful Links
+## 📝 Usage Examples
 
-- [Chainlink Sepolia Feeds](https://docs.chain.link/data-feeds/price-feeds/addresses#sepolia-testnet)
-- [Uniswap v4 Hooks](https://docs.uniswap.org/contracts/v4/overview)
-- [Sepolia Testnet Faucet](https://sepoliafaucet.com/)
+### Create a Competition
 
----
+```solidity
+// Create daily WETH/USDC competition
+PoolKey memory poolKey = PoolKey({
+    currency0: Currency.wrap(WETH),
+    currency1: Currency.wrap(USDC), 
+    fee: 3000,
+    tickSpacing: 60,
+    hooks: IHooks(hookAddress)
+});
 
-**Ready for real testnet deployment with production-grade price feeds!** 🚀
+hook.createDailyCompetition(poolKey);
+```
+
+### Join as Trader
+
+```solidity
+// Join with entry fee
+uint256 competitionId = 1;
+uint256 entryFee = hook.getCompetitionInfo(competitionId).entryFee;
+
+hook.joinCompetition{value: entryFee}(competitionId);
+```
+
+### Join as LP
+
+```solidity
+// Join as liquidity provider
+hook.joinCompetitionAsLP(competitionId);
+```
