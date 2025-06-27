@@ -78,67 +78,6 @@ Status: Live & Functional ✅
 
 ![image](https://github.com/user-attachments/assets/81121ffd-ee17-42b7-adbd-b7eebc7e504b)
 
-### Competition Verification Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant H as TradeBattle Hook
-    participant PM as Pool Manager
-    participant SM as AVS Service Manager
-    participant O1 as Operator 1
-    participant O2 as Operator 2
-    participant O3 as Operator 3
-    participant CL as Chainlink
-
-    Note over U,CL: Competition Lifecycle
-
-    %% Competition Start
-    U->>H: joinCompetition() + entry fee
-    H->>CL: Get portfolio snapshot prices
-    CL-->>H: Current ETH/USD prices
-    H->>H: Record initial portfolio value
-
-    %% Trading Phase
-    loop Trading Period (24 hours)
-        U->>PM: Execute trades via Uniswap
-        PM->>H: beforeSwap() / afterSwap() hooks
-        H->>H: Track trades & volume
-        H->>CL: Get current prices
-        CL-->>H: Updated prices
-        H->>H: Update live rankings
-    end
-
-    %% Verification Phase
-    H->>SM: createCompetitionVerificationTask()
-    SM->>O1: New task: Calculate P&L
-    SM->>O2: New task: Calculate P&L  
-    SM->>O3: New task: Calculate P&L
-
-    par Parallel Operator Processing
-        O1->>CL: Get final prices
-        CL-->>O1: Price data
-        O1->>O1: Calculate all user P&L
-        O1->>SM: Submit top 3 winners
-    and
-        O2->>CL: Get final prices
-        CL-->>O2: Price data
-        O2->>O2: Calculate all user P&L
-        O2->>SM: Submit top 3 winners
-    and
-        O3->>CL: Get final prices
-        CL-->>O3: Price data
-        O3->>O3: Calculate all user P&L
-        O3->>SM: Submit top 3 winners
-    end
-
-    SM->>SM: Check consensus (2/3 agreement)
-    SM->>H: receiveVerifiedWinners()
-    H->>U: Distribute prizes to winners
-    H->>H: Emit CompetitionFinalized event
-
-    Note over U,CL: Competition Complete ✅
-```
 
 ### Uniswap v4 Hook Integration
 
