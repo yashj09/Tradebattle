@@ -3,15 +3,11 @@ pragma solidity ^0.8.26;
 
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 
-/// @title HookMiner - a utility for mining hook addresses
 library HookMiner {
-    // mask to slice out the bottom 14 bits of the address
     uint160 constant FLAG_MASK = 0x3FFF;
 
-    // Maximum number of iterations to mine for hook address
     uint256 constant MAX_LOOP = 100_000;
 
-    /// @dev Find a salt that produces a hook address with the desired `flags`
     function find(address deployer, uint160 flags, bytes memory creationCode, bytes memory constructorArgs)
         internal
         view

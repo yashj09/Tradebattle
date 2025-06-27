@@ -14,6 +14,24 @@ import {ModifyLiquidityParams, SwapParams} from "v4-core/src/types/PoolOperation
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import "./interfaces/IUniCompete.sol";
 
+interface IERC20 {
+    function balanceOf(address account) external view returns (uint256);
+}
+
+struct ParticipantReturn {
+    address participant;
+    uint256 returnPct;
+}
+
+interface IUniCompeteServiceManager {
+    function createCompetitionVerificationTask(
+        uint256 competitionId,
+        address[] calldata participants,
+        uint256[] calldata initialValues,
+        uint256[] calldata finalValues
+    ) external;
+}
+
 /**
  * @title UniCompeteHook
  * @notice A Uniswap v4 hook that creates trading competitions with LP incentives
@@ -25,7 +43,6 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     using CurrencyLibrary for Currency;
     using StateLibrary for IPoolManager;
 
-    // Competition structures
     struct Competition {
         uint256 id;
         uint256 startTime;
@@ -56,14 +73,15 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         uint256 feesGenerated;
         uint256 volumeFacilitated;
         bool qualified;
-        // LP Stickiness tracking
         uint256 daysActive;
         uint256 volatilityPeriods;
         uint256 consistencyScore;
         uint256 lastActiveTime;
     }
 
-    // State variables
+    address public avsServiceManager;
+    mapping(uint256 => bool) public verificationRequested;
+    mapping(uint256 => bool) public verificationCompleted;
     mapping(uint256 => Competition) public competitions;
     mapping(address => mapping(uint256 => UserEntry)) public userEntries;
     mapping(address => mapping(uint256 => LPEntry)) public lpEntries;
@@ -72,7 +90,6 @@ contract UniCompeteHook is BaseHook, IUniCompete {
 
     uint256 public competitionCounter;
 
-    // Constants
     uint256 public constant ENTRY_FEE_USD = 10; // $10 USD
     uint256 public constant PREMIUM_ENTRY_FEE_USD = 50; // $50 USD for premium pools
     uint256 public constant MIN_PORTFOLIO_VALUE = 50; // $50 USD
@@ -82,17 +99,23 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     uint256 public constant STICKINESS_THRESHOLD = 7 days;
     uint256 public constant VOLATILITY_THRESHOLD = 500; // 5% in basis points
 
-    // Network-specific token addresses
     address public immutable WETH;
     address public immutable USDC;
     address public immutable ETH_USD_PRICE_FEED;
 
-    // Events
     event CompetitionCreated(uint256 indexed competitionId, PoolKey poolKey, bool isPremium);
     event UserJoinedCompetition(address indexed user, uint256 indexed competitionId);
     event LPJoinedCompetition(address indexed lp, uint256 indexed competitionId);
     event CompetitionFinalized(uint256 indexed competitionId, address[] winners);
     event StickinessScoreUpdated(address indexed lp, uint256 indexed competitionId, uint256 score);
+    event VerificationRequested(uint256 indexed competitionId);
+    event VerificationReceived(uint256 indexed competitionId, address[] winners, uint256[] amounts);
+    event AVSServiceManagerUpdated(address indexed oldManager, address indexed newManager);
+
+    modifier onlyAVSServiceManager() {
+        require(msg.sender == avsServiceManager, "Only AVS service manager");
+        _;
+    }
 
     constructor(IPoolManager _poolManager, address _weth, address _usdc, address _ethUsdPriceFeed)
         BaseHook(_poolManager)
@@ -101,7 +124,6 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         USDC = _usdc;
         ETH_USD_PRICE_FEED = _ethUsdPriceFeed;
 
-        // Initialize price feeds for this network
         _initializePriceFeeds();
     }
 
@@ -166,7 +188,6 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         uint256 portfolioValue = _getPortfolioValue(msg.sender, comp.poolKey);
         require(portfolioValue >= MIN_PORTFOLIO_VALUE * 1e18, "Portfolio too small");
 
-        // Record entry
         userEntries[msg.sender][competitionId] = UserEntry({
             competitionId: competitionId,
             entryTime: block.timestamp,
@@ -229,7 +250,6 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         });
     }
 
-    // Hook implementations with correct signatures
     function _afterInitialize(address, PoolKey calldata, uint160, int24) internal pure override returns (bytes4) {
         return BaseHook.afterInitialize.selector;
     }
@@ -314,27 +334,81 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         require(block.timestamp > comp.endTime, "Competition not ended");
         require(!comp.finalized, "Already finalized");
 
-        // Calculate final scores and determine winners
-        address[] memory winners = _calculateWinners(competitionId);
-        _distributePrizes(competitionId, winners);
-        _distributeLPRewards(competitionId);
-
+        if (avsServiceManager != address(0)) {
+            _requestAVSVerification(competitionId);
+        } else {
+            address[] memory winners = _calculateWinners(competitionId);
+            _distributePrizes(competitionId, winners);
+            _distributeLPRewards(competitionId);
+        }
         comp.finalized = true;
+    }
+
+    function _requestAVSVerification(uint256 competitionId) internal {
+        Competition storage comp = competitions[competitionId];
+
+        address[] memory participants = comp.participants;
+        uint256[] memory initialValues = new uint256[](participants.length);
+        uint256[] memory finalValues = new uint256[](participants.length);
+
+        for (uint256 i = 0; i < participants.length; i++) {
+            UserEntry storage entry = userEntries[participants[i]][competitionId];
+            initialValues[i] = entry.initialPortfolioValue;
+            finalValues[i] = _getPortfolioValue(participants[i], comp.poolKey);
+
+            entry.finalPortfolioValue = finalValues[i];
+        }
+
+        try IUniCompeteServiceManager(avsServiceManager).createCompetitionVerificationTask(
+            competitionId, participants, initialValues, finalValues
+        ) {
+            verificationRequested[competitionId] = true;
+            emit VerificationRequested(competitionId);
+        } catch {
+            _originalFinalizeCompetition(competitionId);
+        }
+    }
+
+    function receiveVerifiedWinners(uint256 competitionId, address[] calldata winners, uint256[] calldata amounts)
+        external
+        onlyAVSServiceManager
+    {
+        require(verificationRequested[competitionId], "Verification not requested");
+        require(!verificationCompleted[competitionId], "Already completed");
+        require(winners.length <= 3, "Too many winners");
+        require(winners.length == amounts.length, "Array length mismatch");
+
+        Competition storage comp = competitions[competitionId];
+        require(!comp.finalized, "Competition already finalized");
+
+        verificationCompleted[competitionId] = true;
+
+        _distributePrizes(competitionId, winners);
+        comp.finalized = true;
+
+        emit VerificationReceived(competitionId, winners, amounts);
         emit CompetitionFinalized(competitionId, winners);
     }
 
-    // Internal functions
+    function _originalFinalizeCompetition(uint256 competitionId) internal {
+        Competition storage comp = competitions[competitionId];
+
+        address[] memory winners = _calculateWinners(competitionId);
+        _distributePrizes(competitionId, winners);
+        comp.finalized = true;
+
+        emit CompetitionFinalized(competitionId, winners);
+    }
+
     function _updateUserStats(address user, uint256 competitionId, SwapParams calldata params, BalanceDelta delta)
         internal
     {
         UserEntry storage entry = userEntries[user][competitionId];
         entry.tradeCount++;
 
-        // Calculate trade volume
         uint256 volume = _calculateTradeVolume(params, delta);
         entry.totalVolume += volume;
 
-        // Check qualification
         if (entry.tradeCount >= MIN_TRADES && entry.totalVolume >= MIN_VOLUME * 1e18) {
             entry.qualified = true;
         }
@@ -348,12 +422,10 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     ) internal {
         LPEntry storage entry = lpEntries[lp][competitionId];
 
-        // Update liquidity metrics
         if (params.liquidityDelta > 0) {
             entry.liquidityProvided += uint256(int256(params.liquidityDelta));
         }
 
-        // Update stickiness metrics
         _updateLPStickiness(lp, competitionId);
         entry.lastActiveTime = block.timestamp;
         entry.qualified = true;
@@ -363,16 +435,13 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         LPEntry storage entry = lpEntries[lp][competitionId];
         Competition storage comp = competitions[competitionId];
 
-        // Calculate days active
         uint256 daysSinceEntry = (block.timestamp - entry.entryTime) / 1 days;
         entry.daysActive = daysSinceEntry;
 
-        // Check if maintaining liquidity during volatility
         if (_isVolatilePeriod(comp.poolKey)) {
             entry.volatilityPeriods++;
         }
 
-        // Calculate consistency score
         entry.consistencyScore = _calculateConsistencyScore(entry);
 
         emit StickinessScoreUpdated(lp, competitionId, entry.consistencyScore);
@@ -380,23 +449,38 @@ contract UniCompeteHook is BaseHook, IUniCompete {
 
     function _calculateWinners(uint256 competitionId) internal returns (address[] memory) {
         Competition storage comp = competitions[competitionId];
-        address[] memory winners = new address[](3);
 
-        // Simple implementation - find top 3 performers by P&L
-        uint256 maxReturn = 0;
+        ParticipantReturn[] memory qualifiedParticipants = new ParticipantReturn[](comp.participants.length);
+        uint256 qualifiedCount = 0;
+
         for (uint256 i = 0; i < comp.participants.length; i++) {
             address user = comp.participants[i];
             UserEntry storage entry = userEntries[user][competitionId];
 
-            if (entry.qualified) {
+            if (entry.qualified && entry.initialPortfolioValue > 0) {
                 entry.finalPortfolioValue = _getPortfolioValue(user, comp.poolKey);
-                uint256 returnPct = (entry.finalPortfolioValue * 100) / entry.initialPortfolioValue;
+                uint256 returnPct = (entry.finalPortfolioValue * 10000) / entry.initialPortfolioValue;
 
-                if (returnPct > maxReturn) {
-                    maxReturn = returnPct;
-                    winners[0] = user;
+                qualifiedParticipants[qualifiedCount] = ParticipantReturn({participant: user, returnPct: returnPct});
+                qualifiedCount++;
+            }
+        }
+
+        for (uint256 i = 0; i < qualifiedCount - 1; i++) {
+            for (uint256 j = 0; j < qualifiedCount - i - 1; j++) {
+                if (qualifiedParticipants[j].returnPct < qualifiedParticipants[j + 1].returnPct) {
+                    ParticipantReturn memory temp = qualifiedParticipants[j];
+                    qualifiedParticipants[j] = qualifiedParticipants[j + 1];
+                    qualifiedParticipants[j + 1] = temp;
                 }
             }
+        }
+
+        uint256 winnersCount = qualifiedCount < 3 ? qualifiedCount : 3;
+        address[] memory winners = new address[](winnersCount);
+
+        for (uint256 i = 0; i < winnersCount; i++) {
+            winners[i] = qualifiedParticipants[i].participant;
         }
 
         return winners;
@@ -406,40 +490,34 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         Competition storage comp = competitions[competitionId];
         uint256 totalPrize = comp.prizePool;
 
-        // 90% of prize pool goes to winners, 10% platform fee
         uint256 winnersPrize = (totalPrize * 90) / 100;
 
         if (winners[0] != address(0)) {
-            payable(winners[0]).transfer((winnersPrize * 70) / 100); // 70% to first
+            payable(winners[0]).transfer((winnersPrize * 70) / 100);
         }
         if (winners[1] != address(0)) {
-            payable(winners[1]).transfer((winnersPrize * 20) / 100); // 20% to second
+            payable(winners[1]).transfer((winnersPrize * 20) / 100);
         }
         if (winners[2] != address(0)) {
-            payable(winners[2]).transfer((winnersPrize * 10) / 100); // 10% to third
+            payable(winners[2]).transfer((winnersPrize * 10) / 100);
         }
     }
 
     function _distributeLPRewards(uint256 competitionId) internal {
         Competition storage comp = competitions[competitionId];
 
-        // 5% of total prize pool goes to LPs as rewards
         uint256 lpRewardPool = (comp.prizePool * 5) / 100;
 
         if (lpRewardPool > 0) {
-            // Use Uniswap v4's donate function to reward LPs
             _donateToLPs(comp.poolKey, lpRewardPool);
         }
     }
 
     function _donateToLPs(PoolKey memory key, uint256 amount) internal {
-        // Implementation for donating rewards to LPs using v4's donate function
         if (amount > 0) {
-            // Split donation between both currencies in the pool
             uint256 amount0 = amount / 2;
             uint256 amount1 = amount / 2;
 
-            // Note: In production, implement proper currency conversion
             poolManager.donate(key, amount0, amount1, "");
         }
     }
@@ -464,18 +542,28 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         (, int256 price,,,) = priceFeed.latestRoundData();
         require(price > 0, "Invalid price");
 
-        // Price is in 8 decimals, convert to 18 decimals
         return (usdAmount * 1e18) / (uint256(price) * 1e10);
     }
 
     function _getPortfolioValue(address user, PoolKey memory key) internal view returns (uint256) {
-        // Simplified portfolio calculation
-        return 100e18; // Placeholder
+        Currency currency0 = key.currency0;
+        Currency currency1 = key.currency1;
+
+        uint256 balance0 = IERC20(Currency.unwrap(currency0)).balanceOf(user);
+        uint256 balance1 = IERC20(Currency.unwrap(currency1)).balanceOf(user);
+
+        uint256 value0USD = _convertToUSD(Currency.unwrap(currency0), balance0);
+        uint256 value1USD = _convertToUSD(Currency.unwrap(currency1), balance1);
+
+        return value0USD + value1USD;
+    }
+
+    function _convertToUSD(address token, uint256 amount) internal view returns (uint256) {
+        return amount;
     }
 
     function _getLPPosition(address lp, PoolKey memory key) internal view returns (uint256) {
-        // Get LP's position size in the pool
-        return 1e18; // Placeholder
+        return 1e18;
     }
 
     function _calculateTradeVolume(SwapParams calldata params, BalanceDelta delta) internal pure returns (uint256) {
@@ -484,7 +572,7 @@ contract UniCompeteHook is BaseHook, IUniCompete {
     }
 
     function _isVolatilePeriod(PoolKey memory) internal view returns (bool) {
-        return false; // Placeholder
+        return false;
     }
 
     function _calculateConsistencyScore(LPEntry memory entry) internal pure returns (uint256) {
@@ -497,8 +585,32 @@ contract UniCompeteHook is BaseHook, IUniCompete {
         priceFeeds[WETH] = AggregatorV3Interface(ETH_USD_PRICE_FEED);
     }
 
-    // Admin function to add new price feeds
+    function isAVSEnabled() external view returns (bool) {
+        return avsServiceManager != address(0);
+    }
+
+    function getVerificationStatus(uint256 competitionId)
+        external
+        view
+        returns (bool requested, bool completed, bool finalized)
+    {
+        return (
+            verificationRequested[competitionId],
+            verificationCompleted[competitionId],
+            competitions[competitionId].finalized
+        );
+    }
+
     function addPriceFeed(address token, address priceFeedAddress) external {
         priceFeeds[token] = AggregatorV3Interface(priceFeedAddress);
+    }
+
+    function setAVSServiceManager(address _avsServiceManager) external {
+        require(_avsServiceManager != address(0), "Invalid address");
+
+        address oldManager = avsServiceManager;
+        avsServiceManager = _avsServiceManager;
+
+        emit AVSServiceManagerUpdated(oldManager, _avsServiceManager);
     }
 }

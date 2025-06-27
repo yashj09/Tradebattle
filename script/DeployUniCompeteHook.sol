@@ -7,21 +7,14 @@ import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "../src/utils/HookMiner.sol";
 
-/**
- * @title WorkingDeployUniCompeteHook
- * @notice Working deployment script that handles the CREATE2 issue
- */
 contract DeployUniCompeteHook is Script {
-    // Sepolia testnet addresses (verified and working)
     address constant SEPOLIA_POOL_MANAGER = 0x8C4BcBE6b9eF47855f97E675296FA3F6fafa5F1A;
     address constant SEPOLIA_WETH = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
     address constant SEPOLIA_USDC = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
     address constant SEPOLIA_ETH_USD_PRICE_FEED = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
 
-    // CREATE2 deployer - canonical address
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    // Hook flags - MUST match exactly what getHookPermissions() returns
     uint160 constant HOOK_FLAGS = uint160(
         Hooks.AFTER_INITIALIZE_FLAG // 0x0001
             | Hooks.AFTER_ADD_LIQUIDITY_FLAG // 0x0010
@@ -36,14 +29,12 @@ contract DeployUniCompeteHook is Script {
         console2.log("Chain ID:", block.chainid);
         console2.log("Network: Sepolia Testnet");
 
-        // Start broadcast to get correct msg.sender context
         vm.startBroadcast();
 
         address deployer = msg.sender;
         console2.log("Deployer:", deployer);
         console2.log("Deployer balance:", deployer.balance / 1e18, "ETH");
 
-        // Verify we have enough ETH
         require(deployer.balance >= 0.001 ether, "Need at least 0.001 ETH");
 
         console2.log("\n--- Network Configuration ---");
@@ -52,7 +43,6 @@ contract DeployUniCompeteHook is Script {
         console2.log("USDC:", SEPOLIA_USDC);
         console2.log("ETH/USD Feed:", SEPOLIA_ETH_USD_PRICE_FEED);
 
-        // Check if CREATE2 deployer exists
         console2.log("\n--- CREATE2 Deployer Check ---");
         console2.log("CREATE2 Deployer:", CREATE2_DEPLOYER);
         console2.log("CREATE2 Deployer code size:", CREATE2_DEPLOYER.code.length);
@@ -87,20 +77,17 @@ contract DeployUniCompeteHook is Script {
         console2.log("\n--- Mining Deployment ---");
         console2.log("Hook flags required:", HOOK_FLAGS);
 
-        // Prepare constructor arguments
         bytes memory constructorArgs =
             abi.encode(SEPOLIA_POOL_MANAGER, SEPOLIA_WETH, SEPOLIA_USDC, SEPOLIA_ETH_USD_PRICE_FEED);
 
         console2.log("Mining for valid hook address...");
 
-        // Mine for valid hook address using the CREATE2 deployer
         (address hookAddress, bytes32 salt) =
             HookMiner.find(CREATE2_DEPLOYER, HOOK_FLAGS, type(UniCompeteHook).creationCode, constructorArgs);
 
         console2.log("Found hook address:", hookAddress);
         console2.log("Salt:", uint256(salt));
 
-        // Check if address is available
         if (hookAddress.code.length > 0) {
             console2.log("ERROR: Mined address already has code!");
             console2.log("This means a contract already exists at:", hookAddress);
@@ -113,20 +100,17 @@ contract DeployUniCompeteHook is Script {
 
         console2.log("Deploying with CREATE2...");
 
-        // Deploy with CREATE2 using the mined salt
         UniCompeteHook hook = new UniCompeteHook{salt: salt}(
             IPoolManager(SEPOLIA_POOL_MANAGER), SEPOLIA_WETH, SEPOLIA_USDC, SEPOLIA_ETH_USD_PRICE_FEED
         );
 
         console2.log("CREATE2 deployment successful!");
 
-        // Verify address matches what we mined
         require(address(hook) == hookAddress, "Address mismatch!");
 
         console2.log("Hook deployed with mining at:", address(hook));
         _verifyDeployment(hook);
 
-        // Verify permission flags
         uint160 addressFlags = uint160(address(hook)) & 0x3FFF;
         console2.log("Address flags:", addressFlags);
         console2.log("Expected flags:", HOOK_FLAGS);
@@ -145,7 +129,6 @@ contract DeployUniCompeteHook is Script {
         console2.log("Hook Price Feed:", hook.ETH_USD_PRICE_FEED());
         console2.log("Competition Counter:", hook.competitionCounter());
 
-        // Test hook permissions
         try hook.getHookPermissions() returns (Hooks.Permissions memory perms) {
             console2.log("Hook permissions accessible");
             console2.log("After Initialize:", perms.afterInitialize);
