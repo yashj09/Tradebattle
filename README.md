@@ -1,3 +1,5 @@
+EigenLayer AVS Code - https://github.com/yashj09/Eigenlayer-AVS-UniswapV4
+
 # 🎮 TradeBattle - Competitive Trading on Uniswap v4
 
 **Transform DeFi trading into competitive gaming experiences with real prizes and live leaderboards.**
@@ -21,6 +23,7 @@ TradeBattle transforms regular DeFi trading into engaging competitions where:
 
 ```bash
 Hook Address: 0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
+Link - https://sepolia.etherscan.io/address/0x30855F7bA0105515CC9C383eF46E09A7ea7A15d0
 Network: Sepolia Testnet
 Status: Live & Functional ✅
 ```
@@ -73,103 +76,7 @@ Status: Live & Functional ✅
 
 ### System Overview
 
-```mermaid
-graph TB
-    subgraph "Users & Interface"
-        U1[Trader A]
-        U2[Trader B]
-        U3[LP Provider]
-        UI[Uniswap Interface]
-    end
-
-    subgraph "Uniswap v4 Core"
-        PM[Pool Manager]
-        P1[WETH/USDC Pool]
-        P2[Other Pools]
-    end
-
-    subgraph "TradeBattle Hook"
-        TBH[TradeBattle Hook Contract]
-        CM[Competition Manager]
-        PT[Portfolio Tracker]
-        PD[Prize Distribution]
-    end
-
-    subgraph "EigenLayer AVS"
-        SM[Service Manager]
-        O1[Operator 1]
-        O2[Operator 2] 
-        O3[Operator 3]
-        CS[Consensus Layer]
-    end
-
-    subgraph "External Services"
-        CL[Chainlink Price Feeds]
-        ES[Event System]
-    end
-
-    subgraph "Competition Flow"
-        CF1[1. Join Competition]
-        CF2[2. Trade Normally]
-        CF3[3. Track Performance]
-        CF4[4. Competition Ends]
-        CF5[5. AVS Verification]
-        CF6[6. Prize Distribution]
-    end
-
-    %% User interactions
-    U1 --> UI
-    U2 --> UI
-    U3 --> UI
-    UI --> PM
-
-    %% Hook integration
-    PM --> TBH
-    TBH --> P1
-    TBH --> P2
-
-    %% Hook components
-    TBH --> CM
-    TBH --> PT
-    TBH --> PD
-
-    %% AVS integration
-    TBH --> SM
-    SM --> O1
-    SM --> O2
-    SM --> O3
-    O1 --> CS
-    O2 --> CS
-    O3 --> CS
-    CS --> SM
-    SM --> TBH
-
-    %% External data
-    CL --> PT
-    CL --> O1
-    CL --> O2
-    CL --> O3
-
-    %% Competition flow
-    CF1 --> CF2
-    CF2 --> CF3
-    CF3 --> CF4
-    CF4 --> CF5
-    CF5 --> CF6
-
-    %% Styling
-    classDef userNodes fill:#e1f5fe
-    classDef hookNodes fill:#f3e5f5
-    classDef avsNodes fill:#e8f5e8
-    classDef externalNodes fill:#fff3e0
-    classDef flowNodes fill:#fce4ec
-
-    class U1,U2,U3,UI userNodes
-    class TBH,CM,PT,PD hookNodes
-    class SM,O1,O2,O3,CS avsNodes
-    class CL,ES externalNodes
-    class CF1,CF2,CF3,CF4,CF5,CF6 flowNodes
-```
+![image](https://github.com/user-attachments/assets/81121ffd-ee17-42b7-adbd-b7eebc7e504b)
 
 ### Competition Verification Flow
 
